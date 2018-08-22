@@ -10,6 +10,19 @@ var shSalesOrder = ss.getSheetByName('Sales Order');
 
 function addItemToOrder() {
   var ui = SpreadsheetApp.getUi(); // Same variations.
+
+  // ORDER QUANTITY
+  var orderQuantityColumn = "R";
+  var orderQuantityOffsetValue = 8;
+
+  // ORDER PRICE
+  var orderPriceColumn = "S";
+  var orderPriceOffsetValue = 9;
+
+  // AVAILABLE UNITS
+  var availableUnitsColumn = "P";
+  var availableUnitsOffsetValue = 6;
+
   var result = ui.alert(
      'Please confirm',
      'Add products to the Cart Items?',
@@ -19,9 +32,9 @@ function addItemToOrder() {
   if (result == ui.Button.YES) {
     // User clicked "Yes".
 
-    // Get last row in shSalesOrder column Q (Order Price)
+    // Get last row in shSalesOrder column R (Order Quantity)
     var direction = SpreadsheetApp.Direction;
-    var lastRow = shSalesOrder.getRange("Q"+(shSalesOrder.getLastRow()+1)).getNextDataCell(direction.UP).getRow();
+    var lastRow = shSalesOrder.getRange(orderQuantityColumn+(shSalesOrder.getLastRow()+1)).getNextDataCell(direction.UP).getRow();
     // Check if the last row is the header row
     if (lastRow < 6) {
       lastRow = 6;
@@ -33,14 +46,14 @@ function addItemToOrder() {
 
     for (var i = 1; i <= numRows; i++) {
       for (var j = 1; j <= numCols; j++) {
-        // Check if an Order Quantity (column Q) was entered by the user
-        if (range.getCell(i,j).offset(0,7).getValue() > 0) {
+        // Check if an Order Quantity (column R) was entered by the user
+        if (range.getCell(i,j).offset(0,orderQuantityOffsetValue).getValue() > 0) {
           var productId = range.getCell(i,j).getValue();
-          var orderQuantity = range.getCell(i,j).offset(0,7).getValue();
-          var orderPrice = range.getCell(i,j).offset(0,8).getValue();
+          var orderQuantity = range.getCell(i,j).offset(0,orderQuantityOffsetValue).getValue();
+          var orderPrice = range.getCell(i,j).offset(0,orderPriceOffsetValue).getValue();
 
           // Check if BACKORDER message is needed (Order Quantity is MORE THAN Available Quantity)
-          if (range.getCell(i,j).offset(0,7).getValue() > range.getCell(i,j).offset(0,6).getValue()) {
+          if (range.getCell(i,j).offset(0,orderQuantityOffsetValue).getValue() > range.getCell(i,j).offset(0,availableUnitsOffsetValue).getValue()) {
             var currentProductName = range.getCell(i,j).offset(0,1).getValue() + ' - ' + range.getCell(i,j).offset(0,3).getValue() + ' - ' + range.getCell(i,j).offset(0,4).getValue();
             ui.alert('This is a BACKORDER ITEM: \n\n' + currentProductName);
           };
@@ -65,7 +78,7 @@ function addItemToOrder() {
     }
 
     // Reset the Order Quantity and Order Price columns
-    shSalesOrder.getRange('Q6:R').clearContent();
+    shSalesOrder.getRange('R6:S').clearContent();
 
     SpreadsheetApp.flush();
 
