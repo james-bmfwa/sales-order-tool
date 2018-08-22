@@ -75,7 +75,7 @@ function onEdit(e) {
 
 // CLEAR EXISTING ORDER QUANTITY & PRICE COLUMNS
 function clearOrderQuantityOrderPrice() {
-  shSalesOrder.getRange('Q6:R').clearContent();
+  shSalesOrder.getRange('R6:S').clearContent();
   SpreadsheetApp.flush();
 }
 
@@ -87,9 +87,9 @@ function updateOrderQuantityDefaultValues() {
   var direction = SpreadsheetApp.Direction;
   var lastRow = shSalesOrder.getRange("J"+(shSalesOrder.getLastRow()+1)).getNextDataCell(direction.UP).getRow();
 
-  shSalesOrder.getRange('O6:O' + lastRow).copyTo(shSalesOrder.getRange('R6:R' + lastRow), SpreadsheetApp.CopyPasteType.PASTE_VALUES, false);
+  shSalesOrder.getRange('O6:O' + lastRow).copyTo(shSalesOrder.getRange('S6:S' + lastRow), SpreadsheetApp.CopyPasteType.PASTE_VALUES, false);
 
-  shSalesOrder.getRange('Q6').activate(); // Order quantity column
+  shSalesOrder.getRange('R6').activate(); // Order quantity column
 
   SpreadsheetApp.flush();
 }
@@ -98,7 +98,7 @@ function updateOrderQuantityDefaultValues() {
 function updateUserFilteredProductList() {
   SpreadsheetApp.flush();
 
-  var formulaStringStart = "=IFERROR(SORT(UNIQUE(QUERY(stg_inventory!A2:P,\"select A,K,L,M,N,O,P where \""
+  var formulaStringStart = "=IFERROR(SORT(UNIQUE(QUERY(stg_inventory!A2:Q,\"select A,K,L,M,N,O,P,Q where \""
   var formulaString = ''
 
   if (shLookupFormFields.getRange('G4').getValue() != "empty") {
