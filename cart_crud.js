@@ -78,7 +78,10 @@ function addItemToOrder() {
     }
 
     // Reset the Order Quantity and Order Price columns
-    shSalesOrder.getRange('R6:S').clearContent();
+    shSalesOrder.getRange(orderQuantityColumn + '6:' + orderPriceColumn).clearContent();
+
+    // Reset the default Order Price column
+    updateOrderQuantityDefaultValues();
 
     SpreadsheetApp.flush();
 
