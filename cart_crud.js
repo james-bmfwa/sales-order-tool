@@ -20,7 +20,7 @@ var orderPriceOffsetValue = 9;
 var availableUnitsColumn = "P";
 var availableUnitsOffsetValue = 6;
 
-function validOrderPricing() {
+function validOrderQuantity() {
   // Get last row in shSalesOrder column R (Order Quantity)
   var direction = SpreadsheetApp.Direction;
   var lastRow = shSalesOrder.getRange(orderQuantityColumn+(shSalesOrder.getLastRow()+1)).getNextDataCell(direction.UP).getRow();
@@ -28,6 +28,19 @@ function validOrderPricing() {
   // Check if the last row is the header row
   if (lastRow < 6) {
     lastRow = 6;
+  };
+};
+
+function validPricePerUnit() {
+  // Get last row in shSalesOrder column R (Order Quantity)
+  var direction = SpreadsheetApp.Direction;
+  var lastRow = shSalesOrder.getRange(orderQuantityColumn+(shSalesOrder.getLastRow()+1)).getNextDataCell(direction.UP).getRow();
+
+  // Check if the last row is the header (row 5)
+  if (lastRow < 6) {
+    return false;
+  }else{
+    return true;
   };
 
   var range = shSalesOrder.getRange('J6:J' + lastRow).activate();
@@ -59,8 +72,12 @@ function validOrderPricing() {
 };
 
 function addItemsToOrder() {
-  if (validOrderPricing() === false) {
-    ui.alert('One or more items have invalid pricing.  Please edit before continuing.');
+  // Check for valid Order Quantity
+  if (validOrderQuantity() === false) {
+    ui.alert('There are no items with an Order Quantity. Please edit before continuing.');
+  // Check for valid Price Per Unit
+  }else if (validPricePerUnit() === false) {
+    ui.alert('One or more items have invalid pricing. Please edit before continuing.');
   }else{
     // Clear the 'Cart Total' value
     shSalesOrder.getRange('F22').clearContent();
