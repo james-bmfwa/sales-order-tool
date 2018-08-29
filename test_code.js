@@ -4,6 +4,7 @@ var ui = SpreadsheetApp.getUi();
 var ss = SpreadsheetApp.getActiveSpreadsheet();
 
 // SHEET
+var shLookupFormFields = ss.getSheetByName("lookup_form_fields");
 var shLookupSources = ss.getSheetByName("lookup_sources");
 var shSalesOrder = ss.getSheetByName("Sales Order");
 
@@ -106,23 +107,190 @@ function copyfile() {
   source_folder.removeFile(file2);
 };
 
-function testAutoFitColumn() {
-  var spreadsheet = SpreadsheetApp.getActive();
-  spreadsheet.getRange('O:S').activate();
-  spreadsheet.getActiveSheet().autoResizeColumns(15, 5);
+// copy data from Google Sheet A to Google Sheet B
+function cloneGoogleSheet(ssA, ssB) {
+  // source doc
+  var sss = SpreadsheetApp.openById(ssA);
+
+  // source sheet
+  var ss = sss.getSheetByName('Source spreadsheet');
+
+  // Get full range of data
+  var SRange = ss.getDataRange();
+
+  // get A1 notation identifying the range
+  var A1Range = SRange.getA1Notation();
+
+  // get the data values in range
+  var SData = SRange.getValues();
+
+  // target spreadsheet
+  var tss = SpreadsheetApp.openById(ssB);
+
+  // target sheet
+  var ts = tss.getSheetByName('Target Spreadsheet');
+
+  // Clear the Google Sheet before copy
+  ts.clear({contentsOnly: true});
+
+  // set the target range to the values of the source data
+  ts.getRange(A1Range).setValues(SData);
 };
 
-function testInsertCartItemRow() {
-  var spreadsheet = SpreadsheetApp.getActive();
-  spreadsheet.getRange('25:25').activate();
-  spreadsheet.getActiveSheet().insertRowsBefore(spreadsheet.getActiveRange().getRow(), 1);
-  spreadsheet.getActiveRange().offset(0, 0, 1, spreadsheet.getActiveRange().getNumColumns()).activate();
-  spreadsheet.getRange('C25').activate();
+function testGetNameOfFilesInDrive() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('get_sheet_id');
+  sh.getRange('A:A').clearContent();
+
+  var rowNumber = 1;
+
+  //var file = DriveApp.getFileById("1pkwQ9te-EtpqC_NC3BoHzOTUoC7axZDcAfxrqMgslwg");
+  //var source_folder = DriveApp.getFolderById("1ZG3J8uFTZqkih1x6TxapeFLWJeD_Y-KB")
+
+  // Log the name of every file in the user's Drive that modified after February 28,
+  // 2013 whose name contains "untitled".
+  //var files = DriveApp.searchFiles('modifiedDate > "2013-02-28" and title contains "untitled"');
+  var files = DriveApp.searchFiles('title contains "Catalog-Groups"');
+  while (files.hasNext()) {
+    var file = files.next();
+    //Logger.log(file.getName());
+    sh.getRange('A' + rowNumber).setValue(file.getName());
+    sh.getRange('A' + rowNumber).offset(0,1).setValue(file.getId());
+    sh.getRange('A' + rowNumber).offset(0,2).setValue(file.getUrl());
+    rowNumber++;
+  }
 };
 
-function testDeleteColumns() {
-  var spreadsheet = SpreadsheetApp.getActive();
-  spreadsheet.getRange('A:B').activate();
-  spreadsheet.getActiveSheet().deleteColumns(spreadsheet.getActiveRange().getColumn(), spreadsheet.getActiveRange().getNumColumns());
-  spreadsheet.getRange('A1').activate();
-};
+function searchForIdBasedOnUserInput() {
+  // Prompt the user for a search term
+  var searchTerm = Browser.inputBox("Enter the string to search for:");
+
+  // Get the active spreadsheet and the active sheet
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('get_sheet_id');
+  var sheetGetCatalogGroups = ss.getSheetByName('get_catalog_groups');
+  //var sheet = ss.getActiveSheet();
+
+  // Set up the spreadsheet to display the results
+  var headers = [["File Name", "File Type", "URL", "Parent Folder", "Last Updated", "ID"]];
+  sheet.clear();
+  sheet.getRange("A1:F1").setValues(headers);
+
+  // Search the files in the user's Google Drive for the search term
+  // See documentation for search parameters you can use
+  // https://developers.google.com/apps-script/reference/drive/drive-app#searchFiles(String)
+  var files = DriveApp.searchFiles("title contains '"+searchTerm.replace("'","\'")+"'");
+
+  var urlPrefix = "https://docs.google.com/spreadsheets/d/"
+
+  // create an array to store our data to be written to the sheet
+  var output = [];
+  // Loop through the results and get the file name, file type, and URL
+  while (files.hasNext()) {
+    var file = files.next();
+
+    var name = file.getName();
+    var type = file.getMimeType();
+    var url = file.getUrl();
+    var parent = file.getParents().next().getName();
+    var fileDate = file.getLastUpdated();
+    var id = getIdFrom(url);
+
+    // push the file details to our output array (essentially pushing a row of data)
+    output.push([name, type, url, parent, fileDate, id]);
+
+    break;
+  }
+
+  var sss = SpreadsheetApp.openById(id); //replace with source ID
+  var ss = sss.getSheetByName('Catalog Groups'); //replace with source Sheet tab name
+  var range = ss.getRange('A1:E15').activate(); //assign the range you want to copy
+  var data = range.getValues();
+
+  var numRows = range.getRows();
+  var numCols = range.getColumns();
+
+  //var tss = SpreadsheetApp.openById('spreadsheet_key'); //replace with destination ID
+  //var ts = tss.getSheetByName('get_sheet_id'); //replace with destination Sheet tab name
+  sheetGetCatalogGroups.getRange(1, 1, numRows, numCols).setValues(data);
+  //ts.getRange(ts.getLastRow()+1, 1,5,5).setValues(data); //you will need to define the size of the copied data see getRange()
+
+  // write data to the sheet
+  //sheet.getRange(2, 1, output.length, 6).setValues(output);
+
+  //sheet.getRange('A5').clearContent();
+  //sheet.getRange('A5').setFormula('=IMPORTRANGE(\"' + urlPrefix + id + '\",\"A2:C15\")');
+  ui.alert("done");
+}
+
+function getIdFrom(url) {
+  var id = "";
+  var parts = url.split(/^(([^:\/?#]+):)?(\/\/([^\/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/);
+  if (url.indexOf('?id=') >= 0){
+    id = (parts[6].split("=")[1]).replace("&usp","");
+    return id;
+  } else {
+    id = parts[5].split("/");
+    //Using sort to get the id as it is the longest element.
+    var sortArr = id.sort(function(a,b){return b.length - a.length});
+    id = sortArr[0];
+    return id;
+  }
+}
+
+function original_copyDataBetweenSpreadsheets() {
+  var sss = SpreadsheetApp.openById('spreadsheet_key'); //replace with source ID
+  var ss = sss.getSheetByName('Source'); //replace with source Sheet tab name
+  var range = ss.getRange('A1:E15'); //assign the range you want to copy
+  var data = range.getValues();
+
+  var tss = SpreadsheetApp.openById('spreadsheet_key'); //replace with destination ID
+  var ts = tss.getSheetByName('SavedData'); //replace with destination Sheet tab name
+  ts.getRange(ts.getLastRow()+1, 1,5,5).setValues(data); //you will need to define the size of the copied data see getRange()
+}
+
+function runConvertExcelToGoogleSpreadsheet() {
+  //var fileName = "Catalog-Groups.xlsx"
+  var fileName = "https://drive.google.com/drive/folders/1ZG3J8uFTZqkih1x6TxapeFLWJeD_Y-KB"
+  convertExceltoGoogleSpreadsheet2(fileName);
+  ui.alert("DONE");
+}
+
+function convertExceltoGoogleSpreadsheet(fileName) {
+  try {
+    fileName = fileName || "microsoft-excel.xlsx";
+
+    var excelFile = DriveApp.getFilesByName(fileName).next();
+    var fileId = excelFile.getId();
+    var folderId = Drive.Files.get(fileId).parents[0].id;
+    var blob = excelFile.getBlob();
+    var resource = {
+      title: excelFile.getName(),
+      mimeType: MimeType.GOOGLE_SHEETS,
+      parents: [{id: folderId}],
+    };
+    Drive.Files.insert(resource, blob);
+  } catch (f) {
+    Logger.log(f.toString());
+  }
+}
+
+function convertExceltoGoogleSpreadsheet2(fileName) {
+  try {
+    fileName = fileName || "microsoft-excel.xlsx";
+
+    var excelFile = DriveApp.getFilesByName(fileName).next();
+    var fileId = excelFile.getId();
+    var folderId = Drive.Files.get(fileId).parents[0].id;
+    var blob = excelFile.getBlob();
+    var resource = {
+      title: excelFile.getName().replace(/.xlsx?/, ""),
+      key: fileId
+    };
+    Drive.Files.insert(resource, blob, {
+      convert: true
+    });
+  } catch (f) {
+    Logger.log(f.toString());
+  }
+}

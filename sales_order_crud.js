@@ -143,8 +143,20 @@ function submitSalesOrder() {
     // Create a copy of the 'Sales Order' template and save with new file name
     copyfile();
 
+    // Get the last row in shStageInventory
+    var lastRow = shSalesOrder1.getRange('C:C').getLastRow();
+    //  Check to make sure the last row is not the header row (Row 11)
+    if (lastRow < 25) {
+      lastRow = 25
+    }
+
+    // Clear the Order Details
+    shSalesOrder1.getRange('C25:F' + lastRow).clearContent();
+
+    SpreadsheetApp.flush();
+
     // Send email notification of submitted sales order
-    //sendEmails();
+    sendEmails();
 
     shSalesOrder1.getRange('C1').activate();
 

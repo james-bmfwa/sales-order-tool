@@ -1,16 +1,51 @@
 var ui = SpreadsheetApp.getUi();
 
 // SPREADSHEET
+var ss = SpreadsheetApp.getActiveSpreadsheet();
 var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
 
 // SHEET
 var shConnCatalogGroups = ss.getSheetByName("conn_catalog_groups");
 var shStageInventory = ss.getSheetByName("stg_inventory");
 var shSalesOrder = ss.getSheetByName('Sales Order');
+var shLookupFormFields = ss.getSheetByName("lookup_form_fields");
+
+function getNewFileIdForCatalogGroups() {
+  var folderId = shLookupFormFields.getRange('srcFolderId_DataSources').getValue();
+  var sourceFolder = DriveApp.getFolderById(folderId);
+  var file = sourceFolder.getFilesByName('Catalog-Groups').next();
+  var newFileId = file.getId();
+
+  // Update the new file id for srcFileId_CatalogGroups
+  shLookupFormFields.getRange('srcFileId_CatalogGroups').setValue(newFileId);
+};
+
+// Refresh Catalog Groups data
+function refreshCatalogGroupsData() {
+  var srcFileId_CatalogGroups = shLookupFormFields.getRange('srcFileId_CatalogGroups').getValue();
+  var sss = SpreadsheetApp.openById(srcFileId_CatalogGroups); // source ID
+  var ss = sss.getSheetByName('Catalog Groups'); // source Sheet tab name
+  var range = ss.getRange('A1:H'); // assign the range you want to copy
+
+  var numCols = range.getNumColumns();
+  var numRows = range.getNumRows();
+  var data = range.getValues();
+
+  // Clear the existing Catalog Groups data
+  shConnCatalogGroups.getRange('A:H').clearContent;
+
+  // Set the new Catalog Groups data
+  shConnCatalogGroups.getRange(1, 1, numRows, numCols).setValues(data); // destination Sheet tab name
+
+  // Delete the unnecessary columns
+  shConnCatalogGroups.deleteColumns(1, 3);
+
+  SpreadsheetApp.flush();
+};
 
 function stageInventory() {
-  var unitPriceColumn = 'H';
-  var quantityColumn = 'I';
+  var orderQuantityColumn = 'R'; // I
+  var pricePerUnitColumn = 'S'; // H
 
   // Activate the stg_inventory range to be cleared
   shStageInventory.getRange('2:2').activate();
@@ -91,78 +126,38 @@ function stageInventory() {
   shStageInventory.getRange('P3:P' + lastRow).activate();
   shStageInventory.getRange('P2').copyTo(shStageInventory.getActiveRange(), SpreadsheetApp.CopyPasteType.PASTE_FORMULA, false);
 
+  // MINIMUM PRICING (column Q, sourced from conn_product_pricing column G)
+  shStageInventory.getRange('Q2').activate();
+  shStageInventory.getCurrentCell().setFormula('=IFERROR(OFFSET(conn_product_pricing!$G$1,MATCH(K2&" - "&N2,conn_product_pricing!F:F,0)-1,0),"")');
+  shStageInventory.getRange('Q3:Q' + lastRow).activate();
+  shStageInventory.getRange('Q2').copyTo(shStageInventory.getActiveRange(), SpreadsheetApp.CopyPasteType.PASTE_FORMULA, false);
+
+  // IS EXCLUDED PRODUCT (column R, sourced from lookup_excluded_products column B
+  shStageInventory.getRange('R2').activate();
+  shStageInventory.getCurrentCell().setFormula('=IFERROR(OFFSET(lookup_excluded_products!$F$1,MATCH(IF(I2="",J2,I2),lookup_excluded_products!D:D,0)-1,0),"No")');
+  //shStageInventory.getCurrentCell().setFormula('=IFERROR(OFFSET(lookup_excluded_products!$D$1,MATCH(I2,lookup_excluded_products!B:B,0)-1,0),"No")');
+  shStageInventory.getRange('R3:R' + lastRow).activate();
+  shStageInventory.getRange('R2').copyTo(shStageInventory.getActiveRange(), SpreadsheetApp.CopyPasteType.PASTE_FORMULA, false);
+
   // Auto resize column widths
-  spreadsheet.getRange('A:P').activate();
-  shStageInventory.autoResizeColumns(1, 16);
+  spreadsheet.getRange('A:R').activate();
+  shStageInventory.autoResizeColumns(1, 18);
+
+  // To speed up performance, copy/paste values for stg_inventory
+  SpreadsheetApp.flush();
+  shStageInventory.getRange('A2').activate();
+  shStageInventory.getRange('A2:Q' + lastRow).copyTo(shStageInventory.getActiveRange(), SpreadsheetApp.CopyPasteType.PASTE_VALUES, false);
 
   shStageInventory.getRange('A1').activate();
 
-  // Clear existing Unit Price, Quantity
-  shSalesOrder.getRange(unitPriceColumn + '7:' + quantityColumn + '7').clearContent();
+  // Clear existing columns Order Quantity and Per Unit Price in the Sales Order sheet
+  lastRow = shSalesOrder.getRange(orderQuantityColumn + ':' + orderQuantityColumn).getLastRow();
+  shSalesOrder.getRange(orderQuantityColumn + '6:' + pricePerUnitColumn + lastRow).clearContent();
+
+  // Hide the Stage Inventory sheet
+  shStageInventory.hideSheet();
 
   SpreadsheetApp.flush();
 
-  shSalesOrder.getRange('C1').activate();
-};
-
-function addItemToOrder() {
-  var ui = SpreadsheetApp.getUi(); // Same variations.
-  var result = ui.alert(
-     'Please confirm',
-     'Add products to the Cart Items?',
-      ui.ButtonSet.YES_NO);
-
-  // Process the user's response.
-  if (result == ui.Button.YES) {
-    // User clicked "Yes".
-
-    // Get last row in shSalesOrder column Q (Order Price)
-    var direction = SpreadsheetApp.Direction;
-    var lastRow = shSalesOrder.getRange("Q"+(shSalesOrder.getLastRow()+1)).getNextDataCell(direction.UP).getRow();
-    // Check if the last row is the header row
-    if (lastRow < 6) {
-      lastRow = 6;
-    };
-
-    var range = shSalesOrder.getRange('J6:J' + lastRow).activate();
-    var numRows = range.getNumRows();
-    var numCols = range.getNumColumns();
-
-    for (var i = 1; i <= numRows; i++) {
-      for (var j = 1; j <= numCols; j++) {
-        // Check if an Order Quantity was entered by the user
-        if (range.getCell(i,j).offset(0,7).getValue() > 0) {
-          var productId = range.getCell(i,j).getValue();
-          var orderQuantity = range.getCell(i,j).offset(0,7).getValue();
-          var orderPrice = range.getCell(i,j).offset(0,8).getValue();
-
-          // Insert new row
-          shSalesOrder.getRange('C25:F25').activate();
-          shSalesOrder.insertRowsBefore(shSalesOrder.getActiveRange().getRow(),1);
-
-          // Need to check if Order Quantity is more than Available Units
-          var availableUnitsColumn = 'P';
-          // ADD CODE HERE FOR THE CHECK
-
-          // Add the current record to the cart items
-          shSalesOrder.getRange('C25').setValue(productId);
-          shSalesOrder.getRange('D25').setValue(orderQuantity);
-          shSalesOrder.getRange('E25').setValue(orderPrice);
-
-          // Add formula for the Product Name lookup
-          shSalesOrder.getRange('F25').setFormula("=OFFSET(stg_inventory!$B$1,MATCH(C25,stg_inventory!A:A,0)-1,0)");
-        };
-      }
-    }
-
-    // Reset the Order Quantity and Order Price columns
-    shSalesOrder.getRange('Q6:R').clearContent();
-
-    SpreadsheetApp.flush();
-
-    ui.alert('Products were successfully added to the Cart.');
-  } else {
-    // User clicked "No" or X in the title bar.
-    ui.alert('No products were added to the Cart.');
-  }
+  shSalesOrder.getRange('C12').activate();
 };
